@@ -1,4 +1,5 @@
 #!/bin/bash
+
 full_image_name=$1
 image_name=$(cut -d: -f1 <<< $full_image_name)
 tag_name=$(cut -d: -f2 <<< $full_image_name)
@@ -33,12 +34,12 @@ mkdir -p $image_name
 while [[ $counter -lt $layers_count ]]; do
 	layer_digest=$(echo $layers | jq --arg c $counter -r '.[($c | tonumber)].digest' )
 	layer_path=$(echo "$layer_digest" | tr ":" "/")
-	echo $layer_path
+	mkdir -p "$image_name/$layer_path"
 	let counter+=1
     echo "Downloading layer $layer_digest ($counter of $layers_count) ..."
 	curl -Ls --insecure \
 		-H "$authz_header" \
-		-o "$image_name/$layer_path.tgz" \
+		-o "$image_name/$layer_path/layer.tgz" \
 		"https://${registry_host}/v2/library/${image_name}/blobs/${layer_digest}"
 	echo Layer ${layer_digest} downloaded.
 done
