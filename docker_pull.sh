@@ -12,17 +12,22 @@ manf_v2_header="Accept: application/vnd.docker.distribution.manifest.v2+json"
 image_name_url=$(echo ${image_name//\//%2F})
 
 echo "Getting token for $full_image_name..."
-token=$(curl -s --insecure "https://auth.docker.io/token?scope=repository%3Alibrary%2F${image_name}%3Apull&service=registry.docker.io" | jq -r .token)
+token=$(curl -s "https://auth.docker.io/token?scope=repository%3Alibrary%2F${image_name}%3Apull&service=registry.docker.io" | jq -r .token)
 
 authz_header="Authorization: Bearer ${token}"
 
 echo "Getting manifest for tag $tag_name..."
-digest=$(curl -s --insecure \
+digest=$(curl -s \
 	-H "$manf_listv2_header" \
 	-H "$authz_header" \
 	"https://${registry_host}/v2/library/${image_name_url}/manifests/${tag_name}" | jq -r '.manifests[] | select (.platform.architecture == "amd64" and .platform.os == "linux") | .digest')
 
-layers=$(curl -s --insecure \
+if [ -z "$digest" ]; then
+	>&2 echo Unable to get digest
+	exit 1
+fi
+
+layers=$(curl -s \
 	-H "$manf_v2_header" \
 	-H "$authz_header" \
 	"https://${registry_host}/v2/library/${image_name}/manifests/${digest}" | jq -r .layers)
@@ -37,10 +42,9 @@ while [[ $counter -lt $layers_count ]]; do
 	mkdir -p "$image_name/$layer_path"
 	let counter+=1
     echo "Downloading layer $layer_digest ($counter of $layers_count) ..."
-	curl -Ls --insecure \
+	curl -Ls \
 		-H "$authz_header" \
 		-o "$image_name/$layer_path/layer.tgz" \
 		"https://${registry_host}/v2/library/${image_name}/blobs/${layer_digest}"
 	echo Layer ${layer_digest} downloaded.
 done
-
